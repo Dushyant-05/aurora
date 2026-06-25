@@ -1,0 +1,1321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AURORA — Sound Visualizer</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@300;400;700&family=Inter:wght@300;400&display=swap');
+
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;background:#000;overflow:hidden;font-family:'Inter',sans-serif}
+
+#c{position:fixed;inset:0;width:100%;height:100%}
+
+/* ── SPLASH ── */
+#splash{
+  position:fixed;inset:0;z-index:50;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse at 50% 60%, #0a0014 0%, #000 70%);
+  transition:opacity 1.2s cubic-bezier(.4,0,.2,1);
+  pointer-events:auto;
+}
+#splash.out{opacity:0;pointer-events:none}
+
+.splash-glow{
+  position:absolute;width:500px;height:500px;border-radius:50%;
+  background:radial-gradient(circle, #6c00ff18 0%, transparent 70%);
+  animation:breathe 4s ease-in-out infinite;
+}
+@keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+
+.splash-title{
+  font-family:'Orbitron',monospace;font-size:clamp(28px,6vw,56px);
+  font-weight:700;letter-spacing:.35em;
+  background:linear-gradient(135deg,#fff 30%,#a78bfa 60%,#38bdf8 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  margin-bottom:8px;position:relative;z-index:1;
+}
+.splash-sub{
+  font-size:14px;letter-spacing:.28em;color:rgba(255,255,255,.6);
+  text-transform:uppercase;margin-bottom:52px;position:relative;z-index:1;
+}
+
+.btn-primary{
+  font-family:'Orbitron',monospace;font-size:13px;letter-spacing:.22em;
+  background:linear-gradient(135deg,#a78bfa,#7c3aed);border:2px solid #a78bfa;
+  color:#fff;padding:14px 40px;cursor:pointer;
+  text-transform:uppercase;position:relative;z-index:1;
+  transition:all .25s ease;border-radius:2px;pointer-events:auto;font-weight:600;
+}
+.btn-primary:hover{
+  border-color:#fff;color:#fff;background:linear-gradient(135deg,#c4b5fd,#a78bfa);
+  box-shadow:0 0 30px rgba(167,139,250,.6),inset 0 0 20px rgba(167,139,250,.2);
+}
+.btn-primary:active{transform:scale(.97)}
+
+.btn-demo{
+  font-size:12px;letter-spacing:.18em;color:#fff;font-weight:600;
+  background:rgba(255,255,255,.12);border:1.5px solid rgba(255,255,255,.4);
+  padding:9px 28px;cursor:pointer;text-transform:uppercase;
+  margin-top:12px;position:relative;z-index:1;
+  transition:all .2s ease;border-radius:2px;pointer-events:auto;
+}
+.btn-demo:hover{color:#fff;background:rgba(255,255,255,.25);border-color:rgba(255,255,255,.6)}
+
+#err{
+  margin-top:28px;max-width:360px;text-align:center;
+  position:relative;z-index:1;display:none;
+}
+#err-msg{font-size:12px;color:#f87171;letter-spacing:.06em;line-height:1.8;margin-bottom:14px}
+#err-hint{font-size:10px;color:rgba(255,255,255,.2);letter-spacing:.06em;line-height:1.9}
+#err-hint code{color:rgba(255,255,255,.4);font-family:monospace}
+.btn-retry{
+  margin-top:14px;font-size:10px;letter-spacing:.15em;
+  background:none;border:1px solid rgba(248,113,113,.3);
+  color:#f87171;padding:7px 20px;cursor:pointer;border-radius:2px;
+  transition:all .2s;
+}
+.btn-retry:hover{border-color:#f87171;box-shadow:0 0 12px rgba(248,113,113,.2)}
+
+/* ── HUD ── */
+#hud{
+  position:fixed;inset:0;pointer-events:none;z-index:10;
+  display:flex;flex-direction:column;justify-content:space-between;
+}
+
+#hud-top{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:20px 28px;
+}
+.hud-logo{
+  font-family:'Orbitron',monospace;font-size:13px;font-weight:700;
+  letter-spacing:.3em;color:rgba(255,255,255,.8);
+}
+.hud-logo em{color:rgba(255,255,255,.5);font-style:normal;font-size:9px;letter-spacing:.15em;margin-left:10px}
+
+#hud-mode{
+  font-size:10px;letter-spacing:.22em;color:#fff;font-weight:600;text-transform:uppercase;
+  border:1.5px solid rgba(255,255,255,.3);padding:6px 14px;border-radius:1px;background:rgba(100,200,255,.08);
+}
+
+#hud-bottom{
+  display:flex;justify-content:center;gap:0;
+  border-top:1px solid rgba(255,255,255,.05);
+}
+.hstat{
+  flex:1;max-width:160px;padding:12px 16px 16px;
+  border-right:1px solid rgba(255,255,255,.05);text-align:center;
+}
+.hstat:last-child{border-right:none}
+.hstat-label{font-size:9px;letter-spacing:.2em;color:rgba(255,255,255,.5);margin-bottom:5px;text-transform:uppercase;font-weight:600}
+.hstat-val{font-family:'Orbitron',monospace;font-size:16px;color:#64c8ff;letter-spacing:.06em;font-weight:700}
+
+/* ── PRESET PILLS ── */
+#presets{
+  position:fixed;top:60px;left:50%;transform:translateX(-50%);
+  display:flex;gap:8px;z-index:11;pointer-events:all;
+  opacity:0;transition:opacity .4s;
+}
+#presets.vis{opacity:1}
+.pill{
+  font-size:10px;letter-spacing:.15em;color:rgba(255,255,255,.7);
+  border:1.5px solid rgba(255,255,255,.2);padding:6px 16px;
+  cursor:pointer;border-radius:20px;transition:all .2s;background:rgba(255,255,255,.05);
+  text-transform:uppercase;font-family:'Inter',sans-serif;font-weight:600;
+}
+.pill:hover,.pill.active{
+  color:#fff;border-color:#64c8ff;background:rgba(100,200,255,.15);
+  box-shadow:0 0 20px rgba(100,200,255,.3);
+}
+
+/* ── PEAK FLASH ── */
+#peak-flash{
+  position:fixed;inset:0;pointer-events:none;z-index:5;opacity:0;
+  background:radial-gradient(ellipse at 50% 50%, rgba(255,255,255,.03) 0%, transparent 70%);
+  transition:opacity .05s;
+}
+
+/* ── FOCUS VISIBILITY (a11y) ── */
+button:focus-visible,.pill:focus-visible{
+  outline:2px solid #64c8ff;outline-offset:3px;border-radius:4px;
+}
+button:focus,.pill:focus{outline:none}
+.btn-primary:focus-visible,.btn-demo:focus-visible{outline-offset:5px}
+
+/* ── CONTROL DOCK (bottom-right) ── */
+#dock{
+  position:fixed;bottom:18px;right:18px;z-index:12;
+  display:flex;align-items:center;gap:6px;
+  opacity:0;transition:opacity .4s;pointer-events:none;
+}
+#dock.vis{opacity:1;pointer-events:all}
+.dock-btn{
+  width:38px;height:38px;border-radius:50%;
+  background:rgba(20,20,28,.55);backdrop-filter:blur(10px);
+  border:1.5px solid rgba(255,255,255,.18);color:rgba(255,255,255,.85);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  font-size:15px;transition:all .2s;
+}
+.dock-btn:hover{border-color:#64c8ff;background:rgba(100,200,255,.15);color:#fff}
+.dock-btn[aria-pressed="true"]{border-color:#64c8ff;color:#64c8ff;background:rgba(100,200,255,.1)}
+
+#sens-wrap{
+  display:none;align-items:center;gap:8px;
+  background:rgba(20,20,28,.55);backdrop-filter:blur(10px);
+  border:1.5px solid rgba(255,255,255,.18);border-radius:20px;
+  padding:0 14px;height:38px;
+}
+#sens-wrap.open{display:flex}
+#sens-wrap label{font-size:9px;letter-spacing:.15em;color:rgba(255,255,255,.6);text-transform:uppercase;white-space:nowrap}
+#sens-range{width:90px;accent-color:#64c8ff;cursor:pointer}
+
+.sr-only{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+  overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
+}
+
+/* ── TOAST ── */
+#toast{
+  position:fixed;bottom:70px;right:18px;z-index:13;
+  font-size:11px;letter-spacing:.1em;color:#fff;text-transform:uppercase;
+  background:rgba(20,20,28,.8);border:1px solid rgba(255,255,255,.2);
+  padding:8px 16px;border-radius:4px;opacity:0;transform:translateY(6px);
+  transition:opacity .25s,transform .25s;pointer-events:none;
+}
+#toast.show{opacity:1;transform:translateY(0)}
+
+/* ── REDUCED MOTION ── */
+@media (prefers-reduced-motion: reduce){
+  .splash-glow{animation:none}
+  #splash,.btn-primary,.btn-demo,.pill,.dock-btn,#toast{transition:none}
+}
+
+/* ── RESPONSIVE / MOBILE ── */
+@media (max-width:680px){
+  .splash-title{letter-spacing:.22em}
+  .splash-sub{font-size:11px;letter-spacing:.18em;margin-bottom:38px;padding:0 16px;text-align:center}
+  #hud-top{padding:14px 16px}
+  .hud-logo{font-size:11px;letter-spacing:.22em}
+  #hud-mode{font-size:9px;padding:5px 10px}
+  #hud-bottom{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .hstat{padding:8px 10px 12px;min-width:78px}
+  .hstat-val{font-size:13px}
+  #presets{
+    top:auto;bottom:64px;left:0;right:0;transform:none;
+    overflow-x:auto;justify-content:flex-start;padding:0 14px 4px;
+    -webkit-overflow-scrolling:touch;mask-image:linear-gradient(90deg,transparent,#000 14px,#000 calc(100% - 14px),transparent);
+  }
+  #presets::-webkit-scrollbar{display:none}
+  .pill{flex:0 0 auto;font-size:9px;padding:6px 13px}
+  #dock{bottom:12px;right:12px}
+  #sens-wrap{display:none !important}
+}
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+<div id="peak-flash"></div>
+
+<!-- SPLASH -->
+<div id="splash">
+  <div class="splash-glow"></div>
+  <div class="splash-title">AURORA</div>
+  <div class="splash-sub">Sound Visualizer &nbsp;·&nbsp; Sing · Play · Feel</div>
+  <button class="btn-primary" id="btn-mic" aria-label="Connect microphone and start visualizing your sound">Connect Microphone</button>
+  <button class="btn-demo" id="btn-demo" aria-label="Start demo mode without a microphone">Demo Mode</button>
+  <div id="err" role="alert" aria-live="assertive">
+    <div id="err-msg"></div>
+    <div id="err-hint"></div>
+    <button class="btn-retry" onclick="retryMic()">Try Again</button>
+  </div>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="hud-top">
+    <div class="hud-logo">AURORA <em>v2</em></div>
+    <div id="hud-mode" role="status" aria-live="polite">DORMANT</div>
+  </div>
+  <div id="hud-bottom">
+    <div class="hstat"><div class="hstat-label">Level</div><div class="hstat-val" id="sv-level">—</div></div>
+    <div class="hstat"><div class="hstat-label">Peak Hz</div><div class="hstat-val" id="sv-freq">—</div></div>
+    <div class="hstat"><div class="hstat-label">Bass</div><div class="hstat-val" id="sv-bass">—</div></div>
+    <div class="hstat"><div class="hstat-label">Preset</div><div class="hstat-val" id="sv-preset">—</div></div>
+  </div>
+</div>
+
+<!-- PRESET SWITCHER -->
+<div id="presets" role="radiogroup" aria-label="Visual preset">
+  <button class="pill active" data-p="cosmos" role="radio" aria-checked="true">Cosmos</button>
+  <button class="pill" data-p="prism" role="radio" aria-checked="false">Prism</button>
+  <button class="pill" data-p="liquid" role="radio" aria-checked="false">Liquid</button>
+  <button class="pill" data-p="storm" role="radio" aria-checked="false">Storm</button>
+  <button class="pill" data-p="neon" role="radio" aria-checked="false">Neon</button>
+  <button class="pill" data-p="psycho" role="radio" aria-checked="false">Psycho</button>
+  <button class="pill" data-p="void" role="radio" aria-checked="false">Void</button>
+</div>
+
+<!-- CONTROL DOCK -->
+<div id="dock">
+  <div id="sens-wrap">
+    <label for="sens-range">Sens</label>
+    <input type="range" id="sens-range" min="0.5" max="2" step="0.05" value="1" aria-label="Microphone sensitivity">
+  </div>
+  <button class="dock-btn" id="btn-sens" title="Sensitivity" aria-label="Toggle sensitivity slider" aria-pressed="false">◐</button>
+  <button class="dock-btn" id="btn-mute" title="Mute input" aria-label="Mute audio input" aria-pressed="false">🎙</button>
+  <button class="dock-btn" id="btn-shot" title="Save image" aria-label="Save a snapshot image">📷</button>
+  <button class="dock-btn" id="btn-full" title="Fullscreen" aria-label="Toggle fullscreen" aria-pressed="false">⛶</button>
+  <button class="dock-btn" id="btn-back" title="Back to start" aria-label="Return to start screen">↺</button>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="sr-status" class="sr-only" role="status" aria-live="polite"></div>
+<div class="sr-only" id="kbd-help">Keyboard shortcuts: number keys 1 to 7 choose a preset, F toggles fullscreen, M mutes the microphone, S saves a snapshot, Escape returns to the start screen.</div>
+
+<script>
+// ─────────────────────────────────────────────
+//  AURORA — Full-spectrum Audio Visualizer
+//  4 presets · GPU-smooth · mic + demo mode
+// ─────────────────────────────────────────────
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', {antialias:true,alpha:false});
+if(!gl) console.error('WebGL not supported');
+const ctx2 = document.createElement('canvas'); // 2D overlay
+const c2 = ctx2.getContext('2d');
+if(!c2) console.error('2D context not supported');
+
+let W, H, DPR;
+let analyser, freqData, timeData, bufLen;
+let demoMode = false, demoPhase = 0;
+let running = false, paused = false;
+let preset = 'cosmos';
+let frame = 0;
+let micStream = null, audioCtx = null;
+let muted = false;
+let sensitivity = 1;
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Audio metrics (smoothed)
+let amp = 0, bass = 0, mid = 0, high = 0, peak = 0;
+let peakFreq = 0;
+let energy = 0; // long-term energy for auto-gain
+let beatCooldown = 0;
+let isBeat = false;
+
+// ── RESIZE (DPR-aware for crisp rendering on retina/mobile) ──
+function resize(){
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = Math.round(W*DPR);
+  canvas.height = Math.round(H*DPR);
+  canvas.style.width = W+'px';
+  canvas.style.height = H+'px';
+  ctx2.width = Math.round(W*DPR);
+  ctx2.height = Math.round(H*DPR);
+  ctx2.style.width = W+'px';
+  ctx2.style.height = H+'px';
+  c2.setTransform(DPR,0,0,DPR,0,0);
+  if(gl) gl.viewport(0,0,canvas.width,canvas.height);
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── MIC INIT ──
+const btnMic = document.getElementById('btn-mic');
+const btnDemo = document.getElementById('btn-demo');
+if(btnMic) btnMic.addEventListener('click', startMic);
+else console.error('btn-mic not found');
+if(btnDemo) btnDemo.addEventListener('click', startDemo);
+else console.error('btn-demo not found');
+document.querySelectorAll('.pill').forEach(p=>{
+  p.addEventListener('click',()=>selectPreset(p.dataset.p));
+});
+
+function selectPreset(name){
+  preset = name;
+  document.querySelectorAll('.pill').forEach(x=>{
+    const active = x.dataset.p===name;
+    x.classList.toggle('active',active);
+    x.setAttribute('aria-checked',active?'true':'false');
+  });
+  const names={cosmos:'Cosmos',prism:'Prism',liquid:'Liquid',storm:'Storm',neon:'Neon',psycho:'Psycho',void:'Void'};
+  toast(names[name]||name);
+}
+
+function toast(msg){
+  const t=document.getElementById('toast');
+  if(!t) return;
+  t.textContent=msg;
+  t.classList.add('show');
+  clearTimeout(t._hideTimer);
+  t._hideTimer=setTimeout(()=>t.classList.remove('show'),1400);
+}
+
+// ── CONTROL DOCK ──
+const dock=document.getElementById('dock');
+const btnSens=document.getElementById('btn-sens');
+const sensWrap=document.getElementById('sens-wrap');
+const sensRange=document.getElementById('sens-range');
+const btnMute=document.getElementById('btn-mute');
+const btnShot=document.getElementById('btn-shot');
+const btnFull=document.getElementById('btn-full');
+const btnBack=document.getElementById('btn-back');
+
+btnSens?.addEventListener('click',()=>{
+  const open=sensWrap.classList.toggle('open');
+  btnSens.setAttribute('aria-pressed',open?'true':'false');
+});
+sensRange?.addEventListener('input',e=>{
+  sensitivity=parseFloat(e.target.value);
+});
+btnMute?.addEventListener('click',()=>{
+  muted=!muted;
+  btnMute.setAttribute('aria-pressed',muted?'true':'false');
+  btnMute.textContent=muted?'🔇':'🎙';
+  if(micStream) micStream.getAudioTracks().forEach(t=>t.enabled=!muted);
+  toast(muted?'Muted':'Listening');
+});
+btnShot?.addEventListener('click',saveSnapshot);
+btnFull?.addEventListener('click',toggleFullscreen);
+btnBack?.addEventListener('click',backToStart);
+
+function saveSnapshot(){
+  try{
+    const out=document.createElement('canvas');
+    out.width=canvas.width;out.height=canvas.height;
+    const octx=out.getContext('2d');
+    octx.drawImage(canvas,0,0);
+    octx.drawImage(ctx2,0,0);
+    const a=document.createElement('a');
+    a.download='aurora-'+Date.now()+'.png';
+    a.href=out.toDataURL('image/png');
+    a.click();
+    toast('Snapshot saved');
+  }catch(err){
+    console.error('Snapshot failed:',err);
+    toast('Snapshot failed');
+  }
+}
+
+function toggleFullscreen(){
+  if(!document.fullscreenElement){
+    document.documentElement.requestFullscreen?.().catch(()=>{});
+    btnFull.setAttribute('aria-pressed','true');
+  }else{
+    document.exitFullscreen?.();
+    btnFull.setAttribute('aria-pressed','false');
+  }
+}
+
+function backToStart(){
+  running=false;
+  if(micStream){micStream.getTracks().forEach(t=>t.stop());micStream=null;}
+  if(audioCtx){audioCtx.close().catch(()=>{});audioCtx=null;}
+  demoMode=false;analyser=null;
+  document.getElementById('splash').classList.remove('out');
+  document.getElementById('presets').classList.remove('vis');
+  dock.classList.remove('vis');
+  const btn=document.getElementById('btn-mic');
+  btn.disabled=false;btn.textContent='Connect Microphone';
+}
+
+// ── KEYBOARD SHORTCUTS ──
+const presetOrder=['cosmos','prism','liquid','storm','neon','psycho','void'];
+window.addEventListener('keydown',e=>{
+  if(!running) return;
+  if(e.key>='1'&&e.key<='7'){
+    const p=presetOrder[+e.key-1];
+    if(p) selectPreset(p);
+  }else if(e.key.toLowerCase()==='f'){
+    toggleFullscreen();
+  }else if(e.key.toLowerCase()==='m'){
+    btnMute?.click();
+  }else if(e.key.toLowerCase()==='s'){
+    saveSnapshot();
+  }else if(e.key==='Escape'){
+    backToStart();
+  }
+});
+
+// ── PAUSE WHEN TAB HIDDEN (saves battery/GPU) ──
+document.addEventListener('visibilitychange',()=>{
+  paused = document.hidden;
+  if(audioCtx){
+    if(paused) audioCtx.suspend().catch(()=>{});
+    else audioCtx.resume().catch(()=>{});
+  }
+});
+
+async function startMic(){
+  console.log('startMic called');
+  const btn = document.getElementById('btn-mic');
+  if(!btn) {console.error('btn-mic not found');return;}
+  btn.textContent = 'Listening…';
+  btn.disabled = true;
+  if(!navigator.mediaDevices?.getUserMedia){
+    showErr('Your browser does not support microphone access. Use Chrome or Firefox.','');
+    btn.disabled=false;btn.textContent='Connect Microphone';return;
+  }
+  try{
+    let stream;
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false});
+    }catch(innerError){
+      console.warn('Primary audio constraints failed, retrying with simpler audio request.', innerError);
+      stream = await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+    }
+    micStream = stream;
+    const actx = new (window.AudioContext||window.webkitAudioContext)({sampleRate:44100});
+    audioCtx = actx;
+    if(actx.state==='suspended') await actx.resume();
+    const src = actx.createMediaStreamSource(stream);
+    analyser = actx.createAnalyser();
+    analyser.fftSize = 4096;
+    analyser.smoothingTimeConstant = 0.75;
+    src.connect(analyser);
+    bufLen = analyser.frequencyBinCount;
+    freqData = new Uint8Array(bufLen);
+    timeData = new Uint8Array(bufLen);
+    launch();
+  }catch(e){
+    btn.disabled=false;btn.textContent='Connect Microphone';
+    let msg='Microphone access was denied.';
+    let hint='';
+    if(e.name==='NotAllowedError'){msg='Permission denied by browser.';hint='Click the 🔒 icon in your address bar → allow microphone → try again.';}
+    else if(e.name==='NotFoundError'){msg='No microphone detected.';hint='Plug in a mic or headset and try again.';}
+    else if(e.name==='NotReadableError'){msg='Mic is busy with another app.';hint='Close any other app using the mic and try again.';}
+    else if(e.name==='OverconstrainedError' || e.name==='NotSupportedError' || e.name==='ConstraintNotSatisfiedError'){
+      msg='Audio constraints are not supported on this device.';hint='Try a different browser or allow the microphone permission when prompted.';
+    }else if(location.protocol==='file:'){msg='file:// protocol blocks mic access.';hint='Run a local server: <code>npx serve .</code> then open <code>localhost:3000</code>';}
+    showErr(msg,hint);
+  }
+}
+
+function showErr(msg,hint){
+  document.getElementById('err').style.display='block';
+  document.getElementById('err-msg').textContent=msg;
+  document.getElementById('err-hint').innerHTML=hint;
+}
+function retryMic(){
+  document.getElementById('err').style.display='none';
+  startMic();
+}
+
+function startDemo(){
+  console.log('startDemo called');
+  demoMode=true;
+  bufLen=2048;
+  freqData=new Uint8Array(bufLen);
+  timeData=new Uint8Array(bufLen);
+  launch();
+}
+
+function launch(){
+  document.getElementById('splash').classList.add('out');
+  document.getElementById('presets').classList.add('vis');
+  document.getElementById('dock').classList.add('vis');
+  running=true;
+  initGL();
+  initOverlay();
+  requestAnimationFrame(loop);
+}
+
+// ── AUDIO ANALYSIS ──
+function analyze(){
+  if(demoMode){
+    demoPhase+=0.018;
+    const b=Math.pow(Math.max(0,Math.sin(demoPhase*0.9)),2);
+    const m=Math.pow(Math.max(0,Math.sin(demoPhase*2.3+1)),1.5)*0.7;
+    const h2=Math.max(0,Math.sin(demoPhase*5.1+2))*0.5;
+    const spike=((demoPhase%6.28)<0.25)?1:0;
+    for(let i=0;i<bufLen;i++){
+      const f=i/bufLen;
+      let v=0;
+      if(f<0.05) v=b*220+Math.random()*20;
+      else if(f<0.3) v=m*160+Math.random()*15;
+      else v=h2*80+Math.random()*10;
+      v+=spike*(1-f)*230;
+      freqData[i]=Math.min(255,Math.max(0,v));
+    }
+    // fake time domain
+    for(let i=0;i<bufLen;i++){
+      timeData[i]=128+Math.sin(demoPhase*40+i*0.05)*b*80+Math.sin(i*0.02)*m*40;
+    }
+  }else if(muted){
+    freqData.fill(0);
+    timeData.fill(128);
+  }else{
+    analyser.getByteFrequencyData(freqData);
+    analyser.getByteTimeDomainData(timeData);
+  }
+
+  // Compute metrics
+  let bSum=0,mSum=0,hSum=0,total=0,pkVal=0,pkIdx=0;
+  const bEnd=Math.floor(bufLen*0.04);
+  const mEnd=Math.floor(bufLen*0.25);
+  for(let i=0;i<bufLen;i++){
+    const v=(freqData[i]/255)*sensitivity;
+    total+=v;
+    if(freqData[i]>pkVal){pkVal=freqData[i];pkIdx=i;}
+    if(i<bEnd) bSum+=v;
+    else if(i<mEnd) mSum+=v;
+    else hSum+=v;
+  }
+  const rawAmp=Math.min(1,total/bufLen);
+  const lerpK=0.12;
+  amp+=(rawAmp-amp)*lerpK;
+  bass+=(Math.min(1,bSum/bEnd)-bass)*lerpK;
+  mid+=(Math.min(1,mSum/(mEnd-bEnd))-mid)*lerpK;
+  high+=(Math.min(1,hSum/(bufLen-mEnd))-high)*(lerpK*0.7);
+  peak+=(pkVal/255-peak)*0.08;
+
+  // Long-term energy
+  energy+=(rawAmp-energy)*0.005;
+  const gainedAmp=Math.min(1,rawAmp/(energy+0.01)*0.5);
+
+  // Beat detection (highly sensitive)
+  beatCooldown=Math.max(0,beatCooldown-1);
+  isBeat=false;
+  // Multiple beat triggers for high sensitivity
+  if((bass>0.2||mid>0.25||rawAmp>0.3)&&beatCooldown===0){isBeat=true;beatCooldown=8;}
+
+  // Peak frequency
+  const binHz=demoMode?22050/bufLen:(44100/2)/bufLen;
+  peakFreq=Math.round(pkIdx*binHz);
+
+  // Flash on beat
+  if(isBeat){
+    const f=document.getElementById('peak-flash');
+    f.style.opacity='1';
+    setTimeout(()=>f.style.opacity='0',80);
+  }
+
+  return {amp:gainedAmp,rawAmp};
+}
+
+// ─────────────────────────────────────────────
+//  WebGL — background layer (shaders per preset)
+// ─────────────────────────────────────────────
+let glProg={}, glBuf, glUniforms={};
+let glTex; // FFT texture
+
+const vsrc=`
+attribute vec2 pos;
+void main(){gl_Position=vec4(pos,0.,1.);}
+`;
+
+const SHADERS={
+cosmos:`
+precision highp float;
+uniform vec2 res;
+uniform float t;
+uniform float amp;
+uniform float bass;
+uniform float mid;
+uniform float high;
+uniform float beat;
+uniform sampler2D fft;
+
+vec3 palette(float x){
+  vec3 a=vec3(.45,.4,.55);
+  vec3 b=vec3(.4,.35,.5);
+  vec3 c=vec3(1.,1.,1.);
+  vec3 d=vec3(.0,.33,.67);
+  return a+b*cos(6.28318*(c*x+d));
+}
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float noise(vec2 p){
+  vec2 i=floor(p);vec2 f=fract(p);
+  f=f*f*(3.-2.*f);
+  return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);
+}
+float fbm(vec2 p){float v=0.;float a=.5;for(int i=0;i<6;i++){v+=a*noise(p);p*=2.;a*=.5;}return v;}
+
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*res)/min(res.x,res.y);
+  float r=length(uv);
+  float a=atan(uv.y,uv.x);
+
+  // FFT sample along angle
+  float fftSample=texture2D(fft,vec2((a/6.2832+.5),.5)).r;
+
+  // Warped nebula
+  float warp=fbm(uv*2.+vec2(sin(t*.07),cos(t*.05))*0.5+bass*.8);
+  float warp2=fbm(uv*3.+warp+vec2(t*.04));
+  float n=fbm(uv*2.5+warp2*1.5+vec2(t*.03,t*.02));
+
+  // Hue shift driven by music
+  float hue=n+t*.04+mid*.3+fftSample*.4;
+  vec3 col=palette(hue);
+
+  // Bright core ring
+  float ring=smoothstep(.7,.0,abs(r-(0.35+bass*.25+fftSample*.15)));
+  col+=ring*vec3(.6,.3,1.)*(.4+amp*.8);
+
+  // Radial rays
+  float rays=pow(max(0.,cos(a*12.+t*.4+bass*2.)),4.)*(.3+amp*.7);
+  col+=rays*palette(hue+.3)*.6;
+
+  // Stars
+  float st=step(.97,hash(floor(uv*90.+17.)));
+  col+=st*vec3(.5,.55,.95)*(.3+amp*1.1)*smoothstep(.0,.1,noise(uv*90.+t*.1));
+
+  // Vignette
+  col*=1.-smoothstep(.5,1.5,r*.8);
+
+  // Beat flash
+  col+=beat*vec3(.06,.04,.12)*smoothstep(1.,.0,r);
+
+  col=clamp(col,0.,1.);
+  col=pow(col,vec3(.85)); // gamma
+  gl_FragColor=vec4(col,1.);
+}`,
+
+prism:`
+precision highp float;
+uniform vec2 res;
+uniform float t;
+uniform float amp;
+uniform float bass;
+uniform float mid;
+uniform float high;
+uniform float beat;
+uniform sampler2D fft;
+
+vec3 hsv2rgb(vec3 c){vec4 K=vec4(1.,2./3.,1./3.,3.);vec3 p=abs(fract(c.xxx+K.xyz)*6.-K.www);return c.z*mix(K.xxx,clamp(p-K.xxx,0.,1.),c.y);}
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float tri(float x){return abs(fract(x)-.5)*2.;}
+
+void main(){
+  vec2 uv=gl_FragCoord.xy/res;
+  vec2 st=(uv-.5)*vec2(res.x/res.y,1.)*2.;
+
+  // Prismatic grid
+  float spd=t*.25+bass*.8;
+  vec2 g=st*vec2(6.+mid*4.);
+  float gx=tri(g.x+spd);
+  float gy=tri(g.y+spd*.7);
+  float diag=tri((g.x+g.y)*.5+spd*.5);
+
+  // FFT colouring
+  float fftCol=texture2D(fft,vec2(uv.x,.5)).r;
+  float fftRow=texture2D(fft,vec2(uv.y,.5)).r;
+  float fftMix=fftCol*fftRow;
+
+  float h=fract(fftMix+gx*.2+gy*.2+t*.04+uv.x*.3);
+  float s=.7+high*.3;
+  float v=.05+diag*.4*(amp+fftMix)*(1.+bass*.6);
+
+  vec3 col=hsv2rgb(vec3(h,s,v));
+
+  // Scan line shimmer
+  float scan=sin(uv.y*res.y*.5+t*3.)*0.03;
+  col+=scan;
+
+  // Center bloom
+  float d=length(st);
+  col+=vec3(.4,.2,.8)*exp(-d*d*2.)*bass*.5;
+  col+=beat*vec3(.15,.1,.3)*exp(-d*d*4.);
+
+  col=clamp(pow(col,vec3(.9)),0.,1.);
+  gl_FragColor=vec4(col,1.);
+}`,
+
+liquid:`
+precision highp float;
+uniform vec2 res;
+uniform float t;
+uniform float amp;
+uniform float bass;
+uniform float mid;
+uniform float high;
+uniform float beat;
+uniform sampler2D fft;
+
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5);}
+float noise(vec2 p){vec2 i=floor(p);vec2 f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
+
+vec3 liqPalette(float x,float shift){
+  vec3 a=vec3(.4,.3,.5);
+  vec3 b=vec3(.4,.3,.4);
+  vec3 c=vec3(2.,1.,1.);
+  vec3 d=vec3(.3,.5+shift*.2,.7);
+  return a+b*cos(6.28318*(c*x+d));
+}
+
+void main(){
+  vec2 uv=(gl_FragCoord.xy/res-.5)*vec2(res.x/res.y,1.)*2.;
+
+  // FFT-warped fluid flow
+  float fftU=texture2D(fft,vec2(abs(uv.x)*.5+.5*(1.-uv.y*.5),.5)).r;
+  float fftV=texture2D(fft,vec2(abs(uv.y)*.5,.5)).r;
+
+  vec2 q;
+  q.x=noise(uv+vec2(t*.08,t*.05)+fftU*bass*1.2);
+  q.y=noise(uv+vec2(t*.06,t*.09)+fftV*mid*.9);
+
+  vec2 r;
+  r.x=noise(uv+2.*q+vec2(1.7,9.2)+t*.07);
+  r.y=noise(uv+2.*q+vec2(8.3,2.8)+t*.06);
+
+  float f=noise(uv+2.8*r+amp*.4);
+
+  float hShift=mid*.15+bass*.08;
+  vec3 col=liqPalette(f+t*.04,hShift);
+
+  // Caustic shimmer
+  float caustic=pow(noise(uv*4.+vec2(t*.2,t*.15)+bass),6.)*2.;
+  col+=caustic*vec3(.5,.8,1.)*(.2+high*.5);
+
+  // Edge darkening
+  float edge=1.-smoothstep(.5,1.5,length(uv));
+  col*=edge;
+
+  // Beat ripple
+  float ripple=sin(length(uv)*20.-t*8.)*exp(-length(uv)*2.)*beat*.3;
+  col+=ripple*vec3(.3,.6,1.);
+
+  col=clamp(pow(col,vec3(.88)),0.,1.);
+  gl_FragColor=vec4(col,1.);
+}`,
+
+storm:`
+precision highp float;
+uniform vec2 res;
+uniform float t;
+uniform float amp;
+uniform float bass;
+uniform float mid;
+uniform float high;
+uniform float beat;
+uniform sampler2D fft;
+
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float noise(vec2 p){vec2 i=floor(p);vec2 f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
+float fbm(vec2 p,int oct){float v=0.;float a=.5;for(int i=0;i<8;i++){if(i>=oct)break;v+=a*noise(p);p*=2.1;a*=.48;}return v;}
+
+void main(){
+  vec2 uv=(gl_FragCoord.xy/res-.5)*vec2(res.x/res.y,1.)*2.;
+  float r=length(uv);
+  float a=atan(uv.y,uv.x);
+
+  // Vortex warp
+  float spin=t*.15+bass*1.5;
+  float twist=a+spin*exp(-r*1.2)+mid*.8/max(.1,r);
+  vec2 warped=vec2(cos(twist),sin(twist))*r;
+
+  float fftA=texture2D(fft,vec2((a/6.2832+.5)*.98+.01,.5)).r;
+  float n=fbm(warped*1.8+vec2(t*.05)+bass*.5,6);
+  float n2=fbm(warped*3.+n*1.5+vec2(t*.04,t*.06),4);
+
+  // Lightning veins
+  float bolt=pow(max(0.,1.-abs(n2-.5)*4.),3.)*(.5+fftA*.8);
+  bolt*=(1.+amp*2.);
+
+  // Color: indigo→cyan→white based on intensity
+  vec3 deep=vec3(.02,.01,.08);
+  vec3 mid2=vec3(.1,.3,.9);
+  vec3 bright=vec3(.6,.9,1.);
+  vec3 white=vec3(1.,1.,1.);
+
+  float intensity=n*0.4+bolt*0.6;
+  vec3 col=mix(deep,mid2,smoothstep(0.,.3,intensity));
+  col=mix(col,bright,smoothstep(.3,.6,intensity));
+  col=mix(col,white,smoothstep(.6,.9,intensity));
+
+  // Eye of the storm — calm dark center
+  col*=smoothstep(.0,.15,r);
+  // with a core glow
+  col+=exp(-r*r*8.)*vec3(.2,.4,1.)*(bass*.4+.1);
+
+  // Beat shockwave
+  float wave=sin(r*30.-t*10.)*exp(-r*2.)*beat*.4;
+  col+=wave*vec3(.3,.6,1.);
+
+  col=clamp(pow(col,vec3(.82)),0.,1.);
+  gl_FragColor=vec4(col,1.);
+}`,
+
+neon:`
+precision highp float;
+uniform vec2 res;
+uniform float t;
+uniform float amp;
+uniform float bass;
+uniform float mid;
+uniform float high;
+uniform float beat;
+uniform sampler2D fft;
+
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+
+float lineAt(float x,float w){
+  float c=abs(fract(x+0.5)-0.5);
+  return 1.0-smoothstep(0.0,w,c);
+}
+
+void main(){
+  vec2 uv=gl_FragCoord.xy/res;
+  vec2 st=(uv-.5)*vec2(res.x/res.y,1.)*2.;
+
+  float horizon=0.05-bass*0.04;
+  float fftL=texture2D(fft,vec2(uv.x,.5)).r;
+  vec3 col;
+
+  if(st.y>horizon){
+    // ── SKY ──
+    float h=clamp((st.y-horizon)/1.1,0.,1.);
+    vec3 cHorizon=vec3(1.0,.4,.5);
+    vec3 cMid=vec3(.45,.1,.5);
+    vec3 cTop=vec3(.03,.02,.09);
+    col=mix(cHorizon,mix(cMid,cTop,smoothstep(0.,.65,h)),smoothstep(0.,1.,h));
+
+    // Sun with horizontal scan bands
+    vec2 sunPos=vec2(0.,horizon+0.02);
+    float sunR=0.2+amp*0.05;
+    float d=length(st-sunPos);
+    float bands=step(.5,fract((st.y-sunPos.y)*18.+t*.3));
+    float sunMask=smoothstep(sunR,sunR-0.01,d)*mix(1.0,0.2,bands);
+    vec3 sunCol=mix(vec3(1.,.85,.35),vec3(1.,.25,.5),clamp(d/sunR,0.,1.));
+    col=mix(col,sunCol,sunMask);
+    col+=vec3(1.,.4,.55)*exp(-d*d*2.2)*(.16+amp*.22);
+
+    // Distant stars, fading near horizon
+    float star=step(.986,hash(floor(st*150.+5.)));
+    col+=star*vec3(.8,.85,1.)*smoothstep(0.,.5,h)*(.25+high*.6);
+  }else{
+    // ── GROUND GRID ──
+    float gd=max(0.01,horizon-st.y);
+    col=mix(vec3(.07,.015,.13),vec3(.0,.0,.015),clamp(gd*1.4,0.,1.));
+
+    float persp=1.0/gd;
+    float speed=t*(.5+bass*1.3);
+
+    float vlines=lineAt(st.x*persp*.16,clamp(gd*.8,.01,.45));
+    float hlines=lineAt(persp*.22-speed,clamp(gd*1.6,.02,.5));
+    float gridGlow=clamp(gd*5.0,0.,1.);
+
+    vec3 gridCol=mix(vec3(.25,.9,1.),vec3(1.,.2,.85),.5+.5*sin(uv.x*3.0+t*.25));
+    col+=vlines*gridCol*(.45+fftL*.7)*gridGlow;
+    col+=hlines*gridCol*.7*gridGlow;
+
+    col+=vec3(1.,.35,.5)*exp(-gd*7.0)*(.22+amp*.28);
+  }
+
+  col+=beat*vec3(1.0,.4,.7)*0.1;
+  col=clamp(col,0.,1.);
+  col=pow(col,vec3(.92));
+  gl_FragColor=vec4(col,1.);
+}`,
+
+psycho:`
+precision highp float;
+uniform vec2 res;
+uniform float t;
+uniform float amp;
+uniform float bass;
+uniform float mid;
+uniform float high;
+uniform float beat;
+uniform sampler2D fft;
+
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float noise(vec2 p){vec2 i=floor(p);vec2 f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
+float fbm(vec2 p){float v=0.;float a=.5;for(int i=0;i<5;i++){v+=a*noise(p);p*=2.;a*=.5;}return v;}
+vec3 hsv2rgb(vec3 c){vec4 K=vec4(1.,2./3.,1./3.,3.);vec3 p=abs(fract(c.xxx+K.xyz)*6.-K.www);return c.z*mix(K.xxx,clamp(p-K.xxx,0.,1.),c.y);}
+
+void main(){
+  vec2 uv=gl_FragCoord.xy/res;
+  vec2 st=(uv-.5)*vec2(res.x/res.y,1.)*2.;
+  st*=1.0-beat*0.1;
+
+  float r=length(st);
+  float a=atan(st.y,st.x)+t*.12+bass*.6;
+
+  // Mirrored kaleidoscope fold (true symmetry, not chaos)
+  float segs=8.0;
+  float seg=6.28318/segs;
+  a=mod(a,seg);
+  a=abs(a-seg*.5);
+  vec2 kuv=vec2(cos(a),sin(a))*r;
+
+  float fftS=texture2D(fft,vec2(clamp(r*.55,0.,1.),.5)).r;
+
+  float n1=fbm(kuv*2.3+vec2(t*.08,t*.05));
+  float n2=fbm(kuv*4.0-n1*1.1+mid*.6);
+  float facets=abs(sin((kuv.x+kuv.y)*8.0+t*.5+bass*2.0));
+
+  float hue=fract(n1*.5+r*.16+t*.025+fftS*.3);
+  float sat=.68+n2*.28;
+  float val=.16+facets*.5*(.6+amp)+fftS*.32;
+
+  vec3 col=hsv2rgb(vec3(hue,sat,clamp(val,0.,1.)));
+
+  // Warm sparkle highlights along facet edges
+  float sparkle=pow(max(0.,1.0-abs(n2-.5)*4.0),5.0)*(.55+high*1.1);
+  col+=sparkle*vec3(1.0,.85,.7)*.5;
+
+  // Glowing jewel core
+  col+=exp(-r*r*5.0)*vec3(1.0,.6,.85)*(.28+beat*.55);
+
+  col*=smoothstep(1.6,.1,r);
+  col=clamp(col,0.,1.);
+  col=pow(col,vec3(.85));
+  gl_FragColor=vec4(col,1.);
+}`,
+
+void:`
+precision highp float;
+uniform vec2 res;
+uniform float t;
+uniform float amp;
+uniform float bass;
+uniform float mid;
+uniform float high;
+uniform float beat;
+uniform sampler2D fft;
+
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float noise(vec2 p){vec2 i=floor(p);vec2 f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
+float fbm(vec2 p){float v=0.;float a=.55;for(int i=0;i<6;i++){v+=a*noise(p);p*=2.05;a*=.5;}return v;}
+
+void main(){
+  vec2 uv=gl_FragCoord.xy/res;
+  vec2 st=(uv-.5)*vec2(res.x/res.y,1.)*2.;
+  float r=length(st);
+  float a=atan(st.y,st.x);
+
+  float fftSample=texture2D(fft,vec2(clamp(r*.5,0.,1.),.5)).r;
+
+  // Gravitational lensing warp of the background starfield
+  float lens=0.35/(r*r+0.05);
+  float swirl=a+lens*.25+t*.05+bass*.3;
+  vec2 lensed=vec2(cos(swirl),sin(swirl))*r;
+
+  // Deep space backdrop with lensed stars
+  float star=step(.988,hash(floor(lensed*60.0)));
+  vec3 col=vec3(.01,.01,.025)+star*vec3(.7,.75,.92)*smoothstep(0.,.2,r-.15)*(.4+high*.6);
+
+  // Faint indigo nebula haze
+  float haze=fbm(lensed*1.3+vec2(t*.03,t*.02));
+  col+=haze*vec3(.1,.06,.22)*.5;
+
+  // Event horizon — true black core
+  float horizon=smoothstep(.16,.13,r);
+  col=mix(col,vec3(0.0),horizon);
+
+  // Accretion disk — turbulent gold/amber ring
+  float diskWarp=a*3.0+t*(1.2+bass*2.0)+fbm(lensed*3.0+t*.1)*2.0;
+  float diskShape=exp(-pow((r-.24-bass*.05)*9.0,2.0));
+  float diskTurb=.6+.4*sin(diskWarp);
+  vec3 diskCol=mix(vec3(.9,.25,.1),vec3(1.0,.85,.45),diskTurb);
+  col+=diskCol*diskShape*(.9+fftSample*.8)*(.7+amp*.8);
+
+  // Beat-reactive flare near the core
+  float flare=exp(-r*r*30.0)*beat*.8;
+  col+=flare*vec3(1.0,.8,.6);
+
+  // Faint violet photon ring just outside the horizon
+  col+=exp(-pow((r-.17)*30.0,2.0))*vec3(.6,.5,1.0)*.25*(.5+mid*.5);
+
+  col=clamp(col,0.,1.);
+  col=pow(col,vec3(.88));
+  gl_FragColor=vec4(col,1.);
+}`
+};
+
+function initGL(){
+  if(!gl) return;
+  // Compile for current preset and rebuild on change
+  buildGLProg(preset);
+
+  // Full-screen quad
+  glBuf=gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,glBuf);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+
+  // FFT texture (1D, updated each frame)
+  glTex=gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D,glTex);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.LUMINANCE,bufLen,1,0,gl.LUMINANCE,gl.UNSIGNED_BYTE,freqData);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+}
+
+function buildGLProg(p){
+  const fsrc=SHADERS[p];
+  if(!fsrc||!gl) return;
+  const prog=gl.createProgram();
+  const vs=compileShader(gl.VERTEX_SHADER,vsrc);
+  const fs=compileShader(gl.FRAGMENT_SHADER,fsrc);
+  if(!vs||!fs) return;
+  gl.attachShader(prog,vs);gl.attachShader(prog,fs);
+  gl.linkProgram(prog);
+  if(!gl.getProgramParameter(prog,gl.LINK_STATUS)){console.error('Program link error:',gl.getProgramInfoLog(prog));return;}
+  glProg.prog=prog;
+  glProg.pos=gl.getAttribLocation(prog,'pos');
+  glUniforms={
+    res:gl.getUniformLocation(prog,'res'),
+    t:gl.getUniformLocation(prog,'t'),
+    amp:gl.getUniformLocation(prog,'amp'),
+    bass:gl.getUniformLocation(prog,'bass'),
+    mid:gl.getUniformLocation(prog,'mid'),
+    high:gl.getUniformLocation(prog,'high'),
+    beat:gl.getUniformLocation(prog,'beat'),
+    fft:gl.getUniformLocation(prog,'fft'),
+  };
+}
+let lastPreset=preset;
+
+function compileShader(type,src){
+  const s=gl.createShader(type);
+  gl.shaderSource(s,src);gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){console.error('Shader compile error:',gl.getShaderInfoLog(s));return null;}
+  return s;
+}
+
+function renderGL(ts){
+  if(!gl||!glProg.prog) return;
+  if(preset!==lastPreset){buildGLProg(preset);lastPreset=preset;}
+
+  // Upload FFT texture
+  gl.bindTexture(gl.TEXTURE_2D,glTex);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.LUMINANCE,bufLen,1,0,gl.LUMINANCE,gl.UNSIGNED_BYTE,freqData);
+
+  gl.useProgram(glProg.prog);
+  gl.bindBuffer(gl.ARRAY_BUFFER,glBuf);
+  gl.enableVertexAttribArray(glProg.pos);
+  gl.vertexAttribPointer(glProg.pos,2,gl.FLOAT,false,0,0);
+
+  gl.uniform2f(glUniforms.res,canvas.width,canvas.height);
+  gl.uniform1f(glUniforms.t,ts*0.001);
+  gl.uniform1f(glUniforms.amp,amp);
+  gl.uniform1f(glUniforms.bass,bass);
+  gl.uniform1f(glUniforms.mid,mid);
+  gl.uniform1f(glUniforms.high,high);
+  gl.uniform1f(glUniforms.beat,isBeat?1:0);
+  gl.uniform1i(glUniforms.fft,0);
+
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+}
+
+// ─────────────────────────────────────────────
+//  2D OVERLAY — waveform + spectrum ring + particles
+// ─────────────────────────────────────────────
+let particles2=[];
+
+function initOverlay(){
+  // The 2D canvas overlays on top of the WebGL canvas
+  ctx2.style.cssText='position:fixed;inset:0;pointer-events:none;z-index:2';
+  ctx2.style.width=W+'px';
+  ctx2.style.height=H+'px';
+  document.body.appendChild(ctx2);
+  c2.setTransform(DPR,0,0,DPR,0,0);
+}
+
+function renderOverlay(){
+  c2.clearRect(0,0,W,H);
+  drawSpectrumRing();
+  drawWaveform();
+  drawParticles();
+  updateHUD();
+}
+
+function drawSpectrumRing(){
+  const cx=W/2, cy=H/2;
+  const baseR=Math.min(W,H)*0.22;
+  const barCount=180;
+  const step=Math.floor(bufLen*0.5/barCount);
+
+  for(let i=0;i<barCount;i++){
+    let sum=0;
+    for(let j=0;j<step;j++) sum+=freqData[i*step+j];
+    const v=sum/(step*255);
+
+    const angle=(i/barCount)*Math.PI*2 - Math.PI/2;
+    const barH=v*(Math.min(W,H)*0.22)*(1+bass*0.5);
+    const inner=baseR*(1-bass*0.08);
+    const outer=inner+barH;
+
+    const x1=cx+Math.cos(angle)*inner;
+    const y1=cy+Math.sin(angle)*inner;
+    const x2=cx+Math.cos(angle)*outer;
+    const y2=cy+Math.sin(angle)*outer;
+
+    // Colour per frequency band
+    const hue=i/barCount*260+120; // green→cyan→blue→violet
+    const sat=70+v*30;
+    const lum=50+v*30;
+    const alpha=0.4+v*0.6;
+
+    c2.beginPath();
+    c2.moveTo(x1,y1);
+    c2.lineTo(x2,y2);
+    c2.strokeStyle=`hsla(${hue},${sat}%,${lum}%,${alpha})`;
+    c2.lineWidth=2.5+v*3;
+    c2.lineCap='round';
+    c2.stroke();
+
+    // Mirrored inner bars (facing inward)
+    const x3=cx+Math.cos(angle)*(inner-barH*0.35);
+    const y3=cy+Math.sin(angle)*(inner-barH*0.35);
+    c2.beginPath();
+    c2.moveTo(x1,y1);
+    c2.lineTo(x3,y3);
+    c2.strokeStyle=`hsla(${hue+30},${sat}%,${lum+10}%,${alpha*0.35})`;
+    c2.lineWidth=1;
+    c2.stroke();
+  }
+
+  // Glowing ring outline
+  c2.beginPath();
+  c2.arc(cx,cy,baseR,0,Math.PI*2);
+  c2.strokeStyle=`rgba(255,255,255,${0.04+bass*0.08})`;
+  c2.lineWidth=1;
+  c2.stroke();
+}
+
+function drawWaveform(){
+  const cx=W/2, cy=H/2;
+  const r=Math.min(W,H)*0.14;
+  const count=Math.min(512,bufLen);
+
+  // Circular waveform
+  c2.beginPath();
+  for(let i=0;i<count;i++){
+    const v=(timeData[i]/128-1)*r*(0.3+amp*0.7);
+    const angle=(i/count)*Math.PI*2-Math.PI/2;
+    const x=cx+Math.cos(angle)*(r+v);
+    const y=cy+Math.sin(angle)*(r+v);
+    i===0?c2.moveTo(x,y):c2.lineTo(x,y);
+  }
+  c2.closePath();
+
+  const wGrad=c2.createLinearGradient(cx-r,cy,cx+r,cy);
+  wGrad.addColorStop(0,`hsla(${180+mid*60},80%,70%,${0.3+amp*0.5})`);
+  wGrad.addColorStop(0.5,`hsla(${280+bass*40},80%,75%,${0.3+amp*0.5})`);
+  wGrad.addColorStop(1,`hsla(${180+mid*60},80%,70%,${0.3+amp*0.5})`);
+  c2.strokeStyle=wGrad;
+  c2.lineWidth=1.5+amp*2;
+  c2.stroke();
+
+  // Fill glow inside waveform
+  c2.fillStyle=`hsla(${220+bass*30},60%,50%,${bass*0.06})`;
+  c2.fill();
+
+  // Center dot
+  c2.beginPath();
+  c2.arc(cx,cy,4+bass*8,0,Math.PI*2);
+  c2.fillStyle=`rgba(255,255,255,${0.4+amp*0.6})`;
+  c2.fill();
+
+  // Center glow
+  const cGrad=c2.createRadialGradient(cx,cy,0,cx,cy,r*0.8);
+  cGrad.addColorStop(0,`hsla(${200+mid*80},90%,70%,${bass*0.2})`);
+  cGrad.addColorStop(1,'transparent');
+  c2.fillStyle=cGrad;
+  c2.beginPath();
+  c2.arc(cx,cy,r*0.8,0,Math.PI*2);
+  c2.fill();
+}
+
+function drawParticles(){
+  const cx=W/2, cy=H/2;
+
+  // Spawn on beat or high energy
+  if(!reducedMotion && (isBeat||amp>0.3)){
+    const count=isBeat?8:2;
+    for(let i=0;i<count;i++){
+      const angle=Math.random()*Math.PI*2;
+      const speed=(isBeat?2:0.8)+Math.random()*(isBeat?5:2);
+      const r=Math.min(W,H)*0.22;
+      const hue=Math.random()*360;
+      particles2.push({
+        x:cx+Math.cos(angle)*r*0.9,
+        y:cy+Math.sin(angle)*r*0.9,
+        vx:Math.cos(angle)*speed,
+        vy:Math.sin(angle)*speed,
+        life:1,
+        decay:0.012+Math.random()*0.02,
+        size:isBeat?3+Math.random()*5:1+Math.random()*2,
+        hue,trail:[],
+      });
+    }
+  }
+
+  // Draw + update
+  particles2=particles2.filter(p=>p.life>0);
+  for(const p of particles2){
+    p.trail.push({x:p.x,y:p.y});
+    if(p.trail.length>8) p.trail.shift();
+
+    // Trail
+    for(let i=1;i<p.trail.length;i++){
+      const ta=p.life*(i/p.trail.length)*0.5;
+      c2.beginPath();
+      c2.moveTo(p.trail[i-1].x,p.trail[i-1].y);
+      c2.lineTo(p.trail[i].x,p.trail[i].y);
+      c2.strokeStyle=`hsla(${p.hue},90%,70%,${ta})`;
+      c2.lineWidth=p.size*p.life*(i/p.trail.length);
+      c2.stroke();
+    }
+
+    // Dot
+    c2.beginPath();
+    c2.arc(p.x,p.y,p.size*p.life,0,Math.PI*2);
+    c2.fillStyle=`hsla(${p.hue},100%,80%,${p.life})`;
+    c2.fill();
+
+    p.x+=p.vx; p.y+=p.vy;
+    p.vx*=0.97; p.vy*=0.97;
+    p.life-=p.decay;
+  }
+}
+
+let lastAnnouncedMode='';
+function updateHUD(){
+  const modeEl=document.getElementById('hud-mode');
+  const presetNames={cosmos:'COSMOS',prism:'PRISM',liquid:'LIQUID',storm:'STORM',neon:'NEON',psycho:'PSYCHO',void:'VOID'};
+  let modeText;
+  if(amp<0.02) modeText=demoMode?'DEMO · SILENT':'SILENT';
+  else if(amp<0.1) modeText=demoMode?'DEMO · LISTENING':'LISTENING';
+  else if(amp>0.5) modeText=demoMode?'DEMO · LOUD':'LOUD';
+  else modeText=demoMode?'DEMO · ACTIVE':'ACTIVE';
+  modeEl.textContent=modeText;
+  if(modeText!==lastAnnouncedMode){
+    lastAnnouncedMode=modeText;
+    const sr=document.getElementById('sr-status');
+    if(sr) sr.textContent='Status: '+modeText;
+  }
+
+  document.getElementById('sv-level').textContent=(amp*100).toFixed(0)+'%';
+  document.getElementById('sv-freq').textContent=peakFreq>20?peakFreq+'':' —';
+  document.getElementById('sv-bass').textContent=(bass*100).toFixed(0)+'%';
+  document.getElementById('sv-preset').textContent=presetNames[preset]||'—';
+}
+
+// ── MAIN LOOP ──
+let beatDecay=0;
+function loop(ts){
+  if(!running||paused){requestAnimationFrame(loop);return;}
+  frame++;
+  analyze();
+  beatDecay=isBeat?1:Math.max(0,beatDecay-0.05);
+  renderGL(ts);
+  renderOverlay();
+  requestAnimationFrame(loop);
+}
+
+// Start initial render
+(function initRender(){
+  if(gl){gl.clearColor(0,0,0,1);gl.clear(gl.COLOR_BUFFER_BIT);}
+})();
+</script>
+</body>
+</html>

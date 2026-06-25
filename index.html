@@ -160,15 +160,6 @@ button:focus,.pill:focus{outline:none}
 .dock-btn:hover{border-color:#64c8ff;background:rgba(100,200,255,.15);color:#fff}
 .dock-btn[aria-pressed="true"]{border-color:#64c8ff;color:#64c8ff;background:rgba(100,200,255,.1)}
 
-#sens-wrap{
-  display:none;align-items:center;gap:8px;
-  background:rgba(20,20,28,.55);backdrop-filter:blur(10px);
-  border:1.5px solid rgba(255,255,255,.18);border-radius:20px;
-  padding:0 14px;height:38px;
-}
-#sens-wrap.open{display:flex}
-#sens-wrap label{font-size:9px;letter-spacing:.15em;color:rgba(255,255,255,.6);text-transform:uppercase;white-space:nowrap}
-#sens-range{width:90px;accent-color:#64c8ff;cursor:pointer}
 
 .sr-only{
   position:absolute;width:1px;height:1px;padding:0;margin:-1px;
@@ -208,8 +199,7 @@ button:focus,.pill:focus{outline:none}
   }
   #presets::-webkit-scrollbar{display:none}
   .pill{flex:0 0 auto;font-size:9px;padding:6px 13px}
-  #dock{bottom:12px;right:12px}
-  #sens-wrap{display:none !important}
+  #dock{bottom:12px;right:12px;flex-direction:column;gap:10px;align-items:flex-end;}
 }
 </style>
 </head>
@@ -259,15 +249,8 @@ button:focus,.pill:focus{outline:none}
 
 <!-- CONTROL DOCK -->
 <div id="dock">
-  <div id="sens-wrap">
-    <label for="sens-range">Sens</label>
-    <input type="range" id="sens-range" min="0.5" max="2" step="0.05" value="1" aria-label="Microphone sensitivity">
-  </div>
-  <button class="dock-btn" id="btn-sens" title="Sensitivity" aria-label="Toggle sensitivity slider" aria-pressed="false">◐</button>
   <button class="dock-btn" id="btn-mute" title="Mute input" aria-label="Mute audio input" aria-pressed="false">🎙</button>
-  <button class="dock-btn" id="btn-shot" title="Save image" aria-label="Save a snapshot image">📷</button>
   <button class="dock-btn" id="btn-full" title="Fullscreen" aria-label="Toggle fullscreen" aria-pressed="false">⛶</button>
-  <button class="dock-btn" id="btn-back" title="Back to start" aria-label="Return to start screen">↺</button>
 </div>
 
 <div id="toast" role="status" aria-live="polite"></div>
@@ -357,21 +340,9 @@ function toast(msg){
 
 // ── CONTROL DOCK ──
 const dock=document.getElementById('dock');
-const btnSens=document.getElementById('btn-sens');
-const sensWrap=document.getElementById('sens-wrap');
-const sensRange=document.getElementById('sens-range');
 const btnMute=document.getElementById('btn-mute');
-const btnShot=document.getElementById('btn-shot');
 const btnFull=document.getElementById('btn-full');
-const btnBack=document.getElementById('btn-back');
 
-btnSens?.addEventListener('click',()=>{
-  const open=sensWrap.classList.toggle('open');
-  btnSens.setAttribute('aria-pressed',open?'true':'false');
-});
-sensRange?.addEventListener('input',e=>{
-  sensitivity=parseFloat(e.target.value);
-});
 btnMute?.addEventListener('click',()=>{
   muted=!muted;
   btnMute.setAttribute('aria-pressed',muted?'true':'false');
@@ -379,9 +350,7 @@ btnMute?.addEventListener('click',()=>{
   if(micStream) micStream.getAudioTracks().forEach(t=>t.enabled=!muted);
   toast(muted?'Muted':'Listening');
 });
-btnShot?.addEventListener('click',saveSnapshot);
 btnFull?.addEventListener('click',toggleFullscreen);
-btnBack?.addEventListener('click',backToStart);
 
 function saveSnapshot(){
   try{
